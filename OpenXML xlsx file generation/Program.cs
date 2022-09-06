@@ -1,11 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace OpenXML_xlsx_file_generation
 {
@@ -39,6 +34,14 @@ namespace OpenXML_xlsx_file_generation
             excel.WriteLine(1, rows[0]);
             excel.WriteLine(3, rows[1]);
             excel.WriteLine(5, rows[2]);
+
+            fileName = "DataFile-AppendLine.xlsx";
+            using ExcelManager excelAppendLine = new ExcelManager(folder, fileName, sheetName);
+            excelAppendLine.AppendLine(rows[0]);
+            for (int i = 0; i < 100000; i++)
+            {
+                excelAppendLine.AppendLine(new string[] { i.ToString(), $"Line {i}", "Hello there", "how are you today?", "I am fine thank you" });
+            }
         }
     }
 }

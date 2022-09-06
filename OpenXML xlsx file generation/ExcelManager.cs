@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -9,11 +10,13 @@ using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace OpenXML_xlsx_file_generation
 {
-    internal class ExcelManager:IDisposable
+    internal class ExcelManager : IDisposable
     {
         private SpreadsheetDocument spreadsheetDocument;
         private WorkbookPart workbookpart;
         private WorksheetPart worksheetPart;
+        private SheetData sheetData;
+        private int lastLineNumber;
 
         public ExcelManager() { }
 
@@ -45,8 +48,6 @@ namespace OpenXML_xlsx_file_generation
             spreadsheetDocument.Dispose();
         }
 
-
-
         /// <summary>
         /// Create a new file.
         /// </summary>
@@ -56,6 +57,7 @@ namespace OpenXML_xlsx_file_generation
         public void CreateFile(string path, string sheetName = null)
         {
             spreadsheetDocument = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook);
+
             workbookpart = spreadsheetDocument.AddWorkbookPart();
             workbookpart.Workbook = new Workbook();
 
@@ -66,6 +68,7 @@ namespace OpenXML_xlsx_file_generation
             {
                 CreateSheet(sheetName);
             }
+            lastLineNumber = 0;
         }
 
         /// <summary>
@@ -85,6 +88,7 @@ namespace OpenXML_xlsx_file_generation
                 Name = name
             };
             sheets.Append(sheet);
+            sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
             spreadsheetDocument.Save();
         }
 
@@ -97,15 +101,40 @@ namespace OpenXML_xlsx_file_generation
         {
             for (int i = 0; i < lineContent.Count(); i++)
             {
+                // @FIXME Improve the performance by directly creating / getting an existing Row object and getting/adding cells inside
                 Cell cell = InsertCellInWorksheet(GetExcelColumnName(i + 1), (uint)lineNumber, worksheetPart);
 
-                cell.CellValue = new CellValue(lineContent[i]);
+                cell.CellValue = new CellValue(RemoveHexadecimalSymbols(lineContent[i]));
                 cell.DataType = new EnumValue<CellValues>(CellValues.String);
             }
             if (save)
             {
                 Save();
             }
+        }
+
+        /// <summary>
+        /// Add a new row to the file.
+        /// </summary>
+        /// <param name="lineContent">to insert in the row</param>
+        public void AppendLine(string[] lineContent)
+        {
+            lastLineNumber++;
+            Row row = new Row() { RowIndex = (uint)lastLineNumber };
+
+            for (int i = 0; i < lineContent.Length; i++)
+            {
+                string cellReference = GetExcelColumnName(i + 1) + lastLineNumber;
+                Cell newCell = new Cell
+                {
+                    CellReference = cellReference,
+                    CellValue = new CellValue(RemoveHexadecimalSymbols(lineContent[i])),
+                    DataType = new EnumValue<CellValues>(CellValues.String)
+                };
+                row.AppendChild(newCell);
+            }
+
+            sheetData.Append(row);
         }
 
         /// <summary>
@@ -124,13 +153,16 @@ namespace OpenXML_xlsx_file_generation
         public static void CreateNewFileWithValues(string fileName, string worksheetName, List<string[]> allValues)
         {
             using ExcelManager manager = new ExcelManager(fileName, worksheetName);
-                for (int j = 0; j < allValues.Count; j++)
-                {
-                    manager.WriteLine(j + 1, allValues[j], false);
-                }
+            for (int j = 0; j < allValues.Count; j++)
+            {
+                manager.AppendLine(allValues[j]);
+            }
             manager.Save();
         }
 
+        /// <summary>
+        /// Close the file.
+        /// </summary>
         private void Close()
         {
             spreadsheetDocument.Close();
@@ -217,5 +249,16 @@ namespace OpenXML_xlsx_file_generation
             return columnName;
         }
 
+        /// <summary>
+        /// Remove all the invalid characters in XML to avoid errors.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <returns>the text without invalid character</returns>
+        /// <remarks>Function found on https://stackoverflow.com/a/21053139</remarks>
+        private static string RemoveHexadecimalSymbols(string text)
+        {
+            string r = "[\x00-\x08\x0B\x0C\x0E-\x1F\x26]";
+            return Regex.Replace(text, r, "", RegexOptions.Compiled);
+        }
     }
 }
