@@ -257,7 +257,7 @@ namespace OpenXML_xlsx_file_generation
         /// <remarks>Function found on https://stackoverflow.com/a/21053139</remarks>
         private static string RemoveHexadecimalSymbols(string text)
         {
-            string r = "[\x00-\x08\x0B\x0C\x0E-\x1F\x26]";
+            string r = "[\x00-\x08\x0B\x0C\x0E-\x1F\x25]";
             return Regex.Replace(text, r, "", RegexOptions.Compiled);
         }
     }
